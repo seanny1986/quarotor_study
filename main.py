@@ -20,8 +20,6 @@ def write_to_file(env_name, alg_name, af, data, batch_size, update_steps):
     # process data
     fp = path + "/data/" + env_name + "_" + alg_name + "_" + str(af) + ".csv"
     data = np.array(data).T
-    print(data)
-    print(np.mean(data, axis=1, keepdims=True))
     mean = np.mean(data, axis=1, keepdims=True)
     std = np.std(data, axis=1, keepdims=True)
     data = np.append(data, mean, axis=1)
@@ -67,7 +65,7 @@ def run(envs, action_freqs, reps):
         state_dim = env.observation_space.shape[0]        
         action_dim = env.action_space.shape[0]
         for af in action_freqs:
-            """
+            
             print("Running A2C in {} at action selection frequency {}".format(e, af))
             env.set_action_frequency(af)
             dat = []
@@ -118,7 +116,7 @@ def run(envs, action_freqs, reps):
             print("TRPO data written.")
             print()
             print()
-            """
+            
             
             print("Running DDPG in {} at action selection frequency {}".format(e, af))
             dat = []
@@ -197,11 +195,11 @@ def run(envs, action_freqs, reps):
 if __name__ == "__main__":
     # execute only if run as a script
     #action_freqs = [0.005, 0.02, 0.035, 0.05, 0.065, 0.08, 0.095, 0.11, 0.125]
-    action_freqs = [0.05, 0.065]
+    action_freqs = [0.05]
     reps = 3
 
-    envs = ["RandomWaypointNH-v0", "Landing-v0"]#["Hover-v0", "RandomWaypointFH-v0", "RandomWaypointNH-v0", "Landing-v0"]
+    envs = ["Hover-v0", "RandomWaypointFH-v0", "RandomWaypointNH-v0", "Land-v0"]
     run(envs, action_freqs, reps)
 
-    pid_envs = ["PIDHover-v0", "PIDRandomWaypointFH-v0", "PIDRandomWaypointNH-v0", "PIDLanding-v0"]
+    pid_envs = ["PIDHover-v0", "PIDRandomWaypointFH-v0", "PIDRandomWaypointNH-v0", "PIDLand-v0"]
     run(pid_envs, action_freqs, reps)

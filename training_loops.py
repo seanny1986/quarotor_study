@@ -6,14 +6,15 @@ import utilities as utils
 import settings as cfg
 
 device = cfg.device
-
+render = cfg.render
 
 def test(env, agent):
     state = torch.Tensor(env.reset()).to(device)
     done = False
     r = 0.
     while not done:
-        #env.render()
+        if render:
+            env.render()
         action, _, _ = agent.select_action(state)
         next_state, reward, done, _ = env.step(action.cpu().data.numpy())
         r += reward

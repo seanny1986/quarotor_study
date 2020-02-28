@@ -4,9 +4,10 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # generic hyperparameter settings
-hidden_dim = 256
-training_iterations = 5
-log_freq = 5
+hidden_dim = 64
+training_iterations = 500
+log_freq = 10
+render = True
 
 # limits for stochastic policy networks
 LOG_SIG_MAX = 2
