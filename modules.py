@@ -9,7 +9,8 @@ device = cfg.device
 LOG_SIG_MAX = cfg.LOG_SIG_MAX
 LOG_SIG_MIN = cfg.LOG_SIG_MIN
 
-artanh = lambda z : 0.5 * torch.log((1+z)/(1-z))
+artanh = lambda z : 0.5 * torch.log((1 + z)/(1 - z + 1e-10) + 1e-10)
+invsig = lambda z : -torch.log((1 - z) / (z + 1e-10) + 1e-10)
 
 class DeterministicPolicy(nn.Module):
     """
@@ -38,18 +39,25 @@ class IndependentGaussianPolicy(DeterministicPolicy):
     Gaussian policy function for continuous control tasks. Assumes all actions are
     independent (i.e. diagonal covariance matrix).
     """
-    def __init__(self, input_dim, hidden_dim, output_dim, pwd=False):
+    def __init__(self, input_dim, hidden_dim, output_dim, sigma_fn=False, pwd=False):
         super(IndependentGaussianPolicy, self).__init__(input_dim, hidden_dim, output_dim)   
-        self.logsigma = nn.Sequential(nn.Linear(input_dim, hidden_dim),
+        self.pwd = pwd
+        self.sigma_fn = sigma_fn
+        if sigma_fn:
+            self.logsigma = nn.Sequential(nn.Linear(input_dim, hidden_dim),
                                nn.ReLU(),
                                nn.Linear(hidden_dim, hidden_dim),
                                nn.ReLU(),
                                nn.Linear(hidden_dim, output_dim))
-        self.pwd = pwd
+        else:
+            self.logsigma = nn.Parameter(torch.zeros(output_dim))
         
     def forward(self, x):
         mu = self.mu(x)
-        logsigma = torch.clamp(self.logsigma(x), min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        if self.sigma_fn:
+            logsigma = torch.clamp(self.logsigma(x), min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        else:
+            logsigma = self.logsigma.expand_as(mu)
         return mu, logsigma
 
     def select_action(self, x):
@@ -79,8 +87,8 @@ class SquashedGaussianPolicy(IndependentGaussianPolicy):
     log(1 - tahn(action)^2) from the original log_prob (to understand why, see normalizing
     flows and the change of variables formula).
     """
-    def __init__(self, input_dim, hidden_dim, output_dim, pwd=False):
-        super(SquashedGaussianPolicy, self).__init__(input_dim, hidden_dim, output_dim, pwd=pwd)
+    def __init__(self, input_dim, hidden_dim, output_dim, sigma_fn=False, pwd=False):
+        super(SquashedGaussianPolicy, self).__init__(input_dim, hidden_dim, output_dim, sigma_fn=sigma_fn, pwd=pwd)
         
     def select_action(self, x):
         action, log_prob, entropy = super(SquashedGaussianPolicy, self).select_action(x)
@@ -91,6 +99,22 @@ class SquashedGaussianPolicy(IndependentGaussianPolicy):
     def get_log_prob(self, states, actions):
         log_prob = super(SquashedGaussianPolicy, self).get_log_prob(states, artanh(actions))
         log_prob -= torch.sum(torch.log((1 - actions.pow(2)) + 1e-10), dim=-1, keepdim=True)
+        return log_prob
+
+
+class ShapedPolicy(IndependentGaussianPolicy):
+    def __init__(self, input_dim, hidden_dim, output_dim, sigma_fn=False, pwd=False):
+        super(ShapedPolicy, self).__init__(input_dim, hidden_dim, output_dim, sigma_fn=sigma_fn, pwd=pwd)
+        
+    def select_action(self, x):
+        action, log_prob, entropy = super(ShapedPolicy, self).select_action(x)
+        action = torch.sigmoid(action) ** 0.5
+        log_prob -= torch.sum(torch.log(0.5 * action * (1 - action ** 0.5)), dim=-1, keepdim=True)
+        return action, log_prob, entropy
+    
+    def get_log_prob(self, states, actions):
+        log_prob = super(ShapedPolicy, self).get_log_prob(states, invsig(actions ** 2))
+        log_prob -= torch.sum(torch.log(0.5 * actions * (1 - actions ** 0.5)), dim=-1, keepdim=True)
         return log_prob
 
 

@@ -5,6 +5,8 @@ from torch.distributions import Normal, MultivariateNormal
 from collections import namedtuple, deque
 import random
 import settings as cfg
+import matplotlib.pyplot as plt
+
 
 device = cfg.device
 
@@ -297,3 +299,41 @@ def linesearch(trajectory, pi, critic, policy_loss, old_params, fullstep, expect
         if ratio.item() > accept_ratio and actual_improve.item() > 0:
             return True, xnew
     return False, old_params
+
+
+def ce_policy_loss(traj, pi, critic, get_phi):
+    states = torch.stack(traj["states"]).to(device)
+    actions = torch.stack(traj["actions"]).to(device)
+    log_probs = torch.stack(traj["log_probs"]).to(device)
+    deltas, returns = get_phi(traj, critic)
+    phi = deltas / returns.std()
+    lp_p = pi.get_log_prob(states, actions)
+    ratio = torch.exp(lp_p - log_probs.detach())
+    loss = -ratio * phi
+    return loss.mean()
+
+
+def kl_policy_loss(traj, pi, critic, get_phi):
+    states = torch.stack(traj["states"]).to(device)
+    actions = torch.stack(traj["actions"]).to(device)
+    log_probs = torch.stack(traj["log_probs"]).to(device)
+    deltas, returns = get_phi(traj, critic)
+    lp_p = pi.get_log_prob(states, actions)
+    ratio = torch.exp(lp_p - log_probs.detach())
+    loss = 0.5 * (ratio - deltas) ** 2
+    return loss.mean()
+
+
+def linearized_action(self, action):
+    rpm_vals = [self.omega_to_rpm(a * self.action_bandwidth + self.hov_omega) for a in action]
+    return rpm_vals
+
+
+def squashed_action(self, action):
+    rpm_vals = [self.max_rpm * ((a + 1) / 2) for a in action]
+    return rpm_vals
+
+
+def shaped_action(self, action):
+    rpm_vals = [self.max_rpm * a for a in action]
+    return rpm_vals

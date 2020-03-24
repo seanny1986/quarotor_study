@@ -11,6 +11,8 @@ import os
 import torch
 import csv
 import settings as cfg
+import mp_envs as mpe
+from multiprocessing_env import SubprocVecEnv
 
 """
 Runs the main experiment loop
@@ -46,6 +48,7 @@ print(aero.__file__)
 print("Working directory: ", path)
 print()
 
+reps = cfg.reps
 offline_batch_size = cfg.offline_batch_size
 online_batch_size = cfg.online_batch_size
 pol_lr = cfg.pol_lr
@@ -58,25 +61,28 @@ warmup = cfg.warmup
 online_steps = cfg.online_steps
 li = cfg.log_freq
 memory_size = cfg.memory_size
+save_video = cfg.save_video
 
 def run(envs, action_freqs, reps):
     for e in envs:
         env = gym.make(e)
+        #envs = [mpe.make(e) for i in range(cfg.num_envs)]
+        #envs = SubprocVecEnv(envs)
         state_dim = env.observation_space.shape[0]        
         action_dim = env.action_space.shape[0]
         for af in action_freqs:
-            
-            print("Running A2C in {} at action selection frequency {}".format(e, af))
             env.set_action_frequency(af)
+            """
+            print("Running A2C in {} at action selection frequency {}".format(e, af))
             dat = []
             for i in range(reps):
                 # A2C
                 v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
                 beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
-                agent = offag.A2C(beta, v_fn)
+                agent = offag.A2Cmp(beta, v_fn)
                 pol_opt = torch.optim.Adam(beta.parameters(), lr=pol_lr)
                 v_opt = torch.optim.Adam(v_fn.parameters(), lr=v_fn_lr)
-                reinforce_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
+                reinforce_data = tl.train_offline_mp(envs, env, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
                 dat.append(reinforce_data)
             write_to_file(e, "a2c", af, dat, offline_batch_size, offline_update_iters)
             print("A2C data written.")
@@ -89,16 +95,16 @@ def run(envs, action_freqs, reps):
                 # PPO
                 v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
                 beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
-                agent = offag.PPO(beta, v_fn)
+                agent = offag.PPOmp(beta, v_fn)
                 pol_opt = torch.optim.Adam(beta.parameters(), lr=pol_lr)
                 v_opt = torch.optim.Adam(v_fn.parameters(), lr=v_fn_lr)
-                ppo_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
+                ppo_data = tl.train_offline_mp(envs, env, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
                 dat.append(ppo_data)
             write_to_file(e, "ppo", af, dat, offline_batch_size, offline_update_iters)
             print("PPO data written.")
             print()
             print()
-            
+            """
             print("Running TRPO in {} at action selection frequency {}".format(e, af))
             dat = []
             for i in range(reps):
@@ -196,10 +202,24 @@ if __name__ == "__main__":
     # execute only if run as a script
     #action_freqs = [0.005, 0.02, 0.035, 0.05, 0.065, 0.08, 0.095, 0.11, 0.125]
     action_freqs = [0.05]
-    reps = 3
-
-    envs = ["Hover-v0", "RandomWaypointFH-v0", "RandomWaypointNH-v0", "Land-v0"]
+    #envs = [gym.make("HoverComparison-v0"), gym.make("Hover-v0")]
+    envs = ["PIDHover-v0"]
+    
+    """
+    state_dim = envs[0].observation_space.shape[0]        
+    action_dim = envs[0].action_space.shape[0]
+    v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
+    beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
+    pi = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
+    fvp = utils.gaussian_fvp
+    agent = offag.TRPO(beta, pi, v_fn, fvp)
+    pol_opt = torch.optim.Adam(beta.parameters(), lr=pol_lr)
+    v_opt = torch.optim.Adam(v_fn.parameters(), lr=v_fn_lr)
+    #trpo_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
+    trpo_data = tl.train_offline_comparison(envs, agent, pol_opt, None, v_opt, batch_size=offline_batch_size, iterations=iters, log_interval=li)
+    #envs = ["HoverComparison-v0", "RandomWaypointFH-v0", "RandomWaypointNH-v0", "Land-v0"]
+    """
     run(envs, action_freqs, reps)
 
-    pid_envs = ["PIDHover-v0", "PIDRandomWaypointFH-v0", "PIDRandomWaypointNH-v0", "PIDLand-v0"]
-    run(pid_envs, action_freqs, reps)
+    #pid_envs = ["PIDHover-v0", "PIDRandomWaypointFH-v0", "PIDRandomWaypointNH-v0", "PIDLand-v0"]
+    #run(pid_envs, action_freqs, reps)

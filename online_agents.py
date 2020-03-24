@@ -33,6 +33,7 @@ class DDPG(nn.Module):
         self.q_fn_targ = q_fn_targ
         self.replay_memory = replay_memory
         self.noise = noise
+        self.name = "DDPG"
         if self.noise is not None: self.noise.reset()
         if q_fn_targ is not None: utils.hard_update(self.q_fn_targ, self.q_fn)
     
@@ -78,6 +79,7 @@ class TD3(DDPG):
 
     def __init__(self, beta, q_fn, q_fn_targ, replay_memory):
         super(TD3, self).__init__(beta, q_fn, None, replay_memory, None)
+        self.name = "TD3"
         self.q_fn_targ = q_fn_targ
         utils.hard_update(self.q_fn_targ, self.q_fn)
 
@@ -125,6 +127,7 @@ class SVG(DDPG):
 
     def __init__(self, beta, q_fn, q_fn_targ, replay_memory):
         super(SVG, self).__init__(beta, q_fn, q_fn_targ, replay_memory, None)
+        self.name = "SVG(0)"
     
     def select_action(self, x):
         return self.beta.select_action(x)
@@ -166,6 +169,7 @@ class SAC(SVG):
 
     def __init__(self, beta, q_fn, v_fn, v_fn_targ, replay_memory):
         super(SAC, self).__init__(beta, None, None, replay_memory)
+        self.name = "SAC"
         self.q_fn = q_fn
         self.v_fn = v_fn
         self.v_fn_targ = v_fn_targ

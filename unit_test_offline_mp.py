@@ -8,6 +8,8 @@ import utilities as utils
 import gym
 import os
 import torch
+import mp_envs as mp
+from multiprocessing_env import SubprocVecEnv
 
 
 ##############################################################################################
@@ -18,43 +20,49 @@ print("Gym location: ")
 print(gym.__file__)
 print()
 
-env = gym.make("HalfCheetah-v1")
-state_dim = env.observation_space.shape[0]
+num_envs = 32
+
+envs = [mp.make_half_cheetah() for i in range(num_envs)]
+tenv = gym.make("HalfCheetah-v1")
+envs = SubprocVecEnv(envs)
+state_dim = tenv.observation_space.shape[0]
 hidden_dim = 64
-action_dim = env.action_space.shape[0]
+action_dim = tenv.action_space.shape[0]
 bsize = 2048
+
 
 path = os.getcwd()
 print("Working directory: ", path)
-print("Observation space dim: ", env.observation_space.shape)
-print("Action space dim: ", env.action_space.shape)
+print("Observation space dim: ", tenv.observation_space.shape)
+print("Action space dim: ", tenv.action_space.shape)
 
 """
 # A2C
 v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
 beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
-agent = offag.A2C(beta, v_fn)
+agent = offag.A2Cmp(beta, v_fn)
 pol_opt = torch.optim.Adam(beta.parameters(), lr=1e-4)
 v_opt = torch.optim.Adam(v_fn.parameters(), lr=1e-4)
-a2c_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
+a2c_data = tl.train_offline_mp(envs, tenv, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
 """
+
 # PPO
 v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
 beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
-agent = offag.PPO(beta, v_fn)
+agent = offag.PPOmp(beta, v_fn)
 pol_opt = torch.optim.Adam(beta.parameters(), lr=3e-4)
 v_opt = torch.optim.Adam(v_fn.parameters(), lr=3e-4)
-ppo_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
+ppo_data = tl.train_offline_mp(envs, tenv, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
 
 # TRPO
 v_fn = mod.ValueNet(state_dim, hidden_dim, 1, num_heads=1)
 beta = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
 pi = mod.IndependentGaussianPolicy(state_dim, hidden_dim, action_dim)
 fvp = utils.gaussian_fvp
-agent = offag.TRPO(beta, pi, v_fn, fvp)
+agent = offag.TRPOmp(beta, pi, v_fn, fvp)
 pol_opt = torch.optim.Adam(beta.parameters(), lr=1e-4)
 v_opt = torch.optim.Adam(v_fn.parameters(), lr=1e-4)
-trpo_data = tl.train_offline(env, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
+trpo_data = tl.train_offline_mp(envs, tenv, agent, pol_opt, None, v_opt, batch_size=bsize, iterations=500)
 
 epochs = np.arange(0, 510, 10)
 plt.figure(figsize=(12,12))
